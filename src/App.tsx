@@ -6,15 +6,15 @@ import {
   highlightedRegionEndChanged,
   highlightedRegionStartChanged,
   mouseDownChanged,
-  Note,
   noteAdded,
   activeNoteChanged,
-  Region,
   regionCopied,
   regionCut,
   regionDeleted,
   regionPasted,
 } from './features/tab';
+import { Region } from './lib/editing';
+import { Note } from './lib/tab';
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 
@@ -69,6 +69,13 @@ export function App() {
   const keyDownHandler = (
     event: React.KeyboardEvent<HTMLDivElement>,
   ) => {
+    if (
+      ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].indexOf(
+        event.code,
+      ) > -1
+    ) {
+      event.preventDefault();
+    }
     if (event.code === 'ArrowUp') {
       movePosition(
         (note.line - 1 + lineCount) % lineCount,
@@ -143,6 +150,7 @@ function Staff(props: StaffProps) {
     notes,
   } = props;
 
+  // TODO make number of staff lines independent of notes
   // Position notes on separate staff lines
   let staffLines: Note[][] = [];
   for (let note of notes) {
