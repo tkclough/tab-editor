@@ -1,15 +1,20 @@
 import React from 'react';
 import './App.css';
+import { useAppDispatch, useAppSelector } from './app/hooks';
 import {
-  noteChanged,
-  highlightedRegionStartChanged,
+  highlightedRegionCleared,
   highlightedRegionEndChanged,
+  highlightedRegionStartChanged,
   mouseDownChanged,
   Note,
+  noteAdded,
+  activeNoteChanged,
   Region,
-} from './features/edit';
-import { useAppDispatch, useAppSelector } from './app/hooks';
-import { noteAdded } from './features/tab';
+  regionCopied,
+  regionCut,
+  regionDeleted,
+  regionPasted,
+} from './features/tab';
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 
@@ -40,7 +45,7 @@ function fallsWithinRegion(
 }
 
 export function App() {
-  const note = useAppSelector((state) => state.edit.note);
+  const note = useAppSelector((state) => state.tab.activeNote);
   const notes = useAppSelector((state) => state.tab.notes);
 
   const dispatch = useAppDispatch();
@@ -52,58 +57,41 @@ export function App() {
     padding = 20,
     margin = 10;
 
+  const movePosition = (line: number, column: number): void => {
+    if (note.text) {
+      dispatch(noteAdded(note));
+    }
+    dispatch(activeNoteChanged({ text: '', line, column }));
+    dispatch(highlightedRegionCleared());
+  };
+
   // Handle staff and edit events
   const keyDownHandler = (
     event: React.KeyboardEvent<HTMLDivElement>,
   ) => {
     if (event.code === 'ArrowUp') {
-      if (note.text) {
-        dispatch(noteAdded(note));
-      }
-
-      dispatch(
-        noteChanged({
-          text: '',
-          line: (note.line - 1 + lineCount) % lineCount,
-          column: note.column,
-        }),
+      movePosition(
+        (note.line - 1 + lineCount) % lineCount,
+        note.column,
       );
+      return false;
     } else if (event.code === 'ArrowDown') {
-      if (note.text) {
-        dispatch(noteAdded(note));
-      }
-
-      dispatch(
-        noteChanged({
-          text: '',
-          line: (note.line + 1) % lineCount,
-          column: note.column,
-        }),
-      );
+      movePosition((note.line + 1) % lineCount, note.column);
+      return false;
     } else if (event.code === 'ArrowLeft') {
-      if (note.text) {
-        dispatch(noteAdded(note));
-      }
-
-      dispatch(
-        noteChanged({
-          text: '',
-          line: note.line,
-          column: note.column - 1,
-        }),
-      );
+      movePosition(note.line, note.column - 1);
+      return false;
     } else if (event.code === 'ArrowRight') {
-      if (note.text) {
-        dispatch(noteAdded(note));
-      }
-
-      dispatch(
-        noteChanged({
-          text: '',
-          line: note.line,
-          column: note.column + 1,
-        }),
-      );
+      movePosition(note.line, note.column + 1);
+      return false;
+    } else if (event.code === 'Delete') {
+      dispatch(regionDeleted());
+    } else if (event.ctrlKey && event.code === 'KeyC') {
+      dispatch(regionCopied());
+    } else if (event.ctrlKey && event.code === 'KeyV') {
+      dispatch(regionPasted());
+    } else if (event.ctrlKey && event.code === 'KeyX') {
+      dispatch(regionCut());
     }
 
     if (event.key.match(/\d/)) {
@@ -111,7 +99,7 @@ export function App() {
         note.text.length > 1 ? event.key : note.text + event.key;
 
       dispatch(
-        noteChanged({
+        activeNoteChanged({
           text: newText,
           line: note.line,
           column: note.column,
@@ -214,12 +202,12 @@ function StaffLine(props: StaffLineProps) {
   } = props;
 
   const dispatch = useAppDispatch();
-  const note = useAppSelector((state) => state.edit.note);
+  const note = useAppSelector((state) => state.tab.activeNote);
   const isMouseDown = useAppSelector(
-    (state) => state.edit.isMouseDown,
+    (state) => state.tab.isMouseDown,
   );
   const highlightedRegion = useAppSelector(
-    (state) => state.edit.highlightedRegion,
+    (state) => state.tab.highlightedRegion,
   );
 
   const height = 2 * margin + (lineCount - 1) * padding;
@@ -300,7 +288,7 @@ function StaffLine(props: StaffLineProps) {
         );
         dispatch(mouseDownChanged(true));
         dispatch(
-          noteChanged({
+          activeNoteChanged({
             text: note.text,
             line: i,
             column: j + staffLineIndex * noteCount,

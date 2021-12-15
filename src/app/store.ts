@@ -1,11 +1,9 @@
 import { configureStore } from '@reduxjs/toolkit';
 import tabReducer from '../features/tab';
-import editReducer from '../features/edit';
 
 const store = configureStore({
   reducer: {
     tab: tabReducer,
-    edit: editReducer,
   },
 });
 
