@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import './App.css';
 import { useAppDispatch, useAppSelector } from './app/hooks';
 import {
@@ -12,6 +12,7 @@ import {
   regionCut,
   regionDeleted,
   regionPasted,
+  notesChanged,
 } from './features/tab';
 import { Region } from './lib/editing';
 import { Note } from './lib/tab';
@@ -47,15 +48,22 @@ function fallsWithinRegion(
 export function App() {
   const note = useAppSelector((state) => state.tab.activeNote);
   const notes = useAppSelector((state) => state.tab.notes);
+  const noteCountPerLine = useAppSelector(
+    (state) => state.tab.notesPerLine,
+  );
+  const numberOfStaffLines = useAppSelector(
+    (state) => state.tab.numberOfStaffLines,
+  );
 
   const dispatch = useAppDispatch();
 
   // Staff parameters
   const lineCount = 4,
     noteWidth = 18,
-    noteCountPerLine = 40,
     padding = 20,
     margin = 10;
+
+  const totalColumns = noteCountPerLine * numberOfStaffLines;
 
   const movePosition = (line: number, column: number): void => {
     if (note.text) {
@@ -77,19 +85,41 @@ export function App() {
       event.preventDefault();
     }
     if (event.code === 'ArrowUp') {
-      movePosition(
-        (note.line - 1 + lineCount) % lineCount,
-        note.column,
-      );
+      if (note.line === 0) {
+        movePosition(
+          lineCount - 1,
+          (note.column - noteCountPerLine + totalColumns) %
+            totalColumns,
+        );
+      } else {
+        movePosition(
+          (note.line - 1 + lineCount) % lineCount,
+          note.column,
+        );
+      }
       return false;
     } else if (event.code === 'ArrowDown') {
-      movePosition((note.line + 1) % lineCount, note.column);
+      if (note.line === lineCount - 1) {
+        movePosition(
+          0,
+          (note.column + noteCountPerLine) % totalColumns,
+        );
+      } else {
+        movePosition((note.line + 1) % lineCount, note.column);
+      }
       return false;
     } else if (event.code === 'ArrowLeft') {
-      movePosition(note.line, note.column - 1);
+      const offset =
+        (note.column - 1 + noteCountPerLine) % noteCountPerLine;
+      const start =
+        noteCountPerLine * Math.floor(note.column / noteCountPerLine);
+      movePosition(note.line, start + offset);
       return false;
     } else if (event.code === 'ArrowRight') {
-      movePosition(note.line, note.column + 1);
+      const offset = (note.column + 1) % noteCountPerLine;
+      const start =
+        noteCountPerLine * Math.floor(note.column / noteCountPerLine);
+      movePosition(note.line, start + offset);
       return false;
     } else if (event.code === 'Delete') {
       dispatch(regionDeleted());
@@ -115,14 +145,28 @@ export function App() {
     }
   };
 
+  useEffect(() => {
+    const data = localStorage.getItem('tabData');
+    let parsed;
+    if (data !== null && (parsed = JSON.parse(data))) {
+      dispatch(notesChanged(parsed));
+    }
+  }, []);
+
+  const saveTab = () => {
+    localStorage.setItem('tabData', JSON.stringify(notes));
+  };
+
   return (
     <div className="App" tabIndex={0} onKeyDown={keyDownHandler}>
+      <button onClick={saveTab}>Save</button>
       <Staff
         padding={padding}
         margin={margin}
         lineCount={lineCount}
         noteWidth={noteWidth}
         noteCountPerLine={noteCountPerLine}
+        numberOfStaffLines={numberOfStaffLines}
         notes={notes}
       />
     </div>
@@ -135,6 +179,7 @@ interface StaffProps {
   lineCount: number;
   noteWidth: number;
   noteCountPerLine: number;
+  numberOfStaffLines: number;
   notes: Note[];
   currentPosition?: Note;
   highlightedRegion?: Region;
@@ -147,20 +192,25 @@ function Staff(props: StaffProps) {
     lineCount,
     noteWidth,
     noteCountPerLine,
+    numberOfStaffLines,
     notes,
   } = props;
 
   // TODO make number of staff lines independent of notes
   // Position notes on separate staff lines
   let staffLines: Note[][] = [];
+  for (let i = 0; i < numberOfStaffLines; i++) {
+    staffLines.push([]);
+  }
+
   for (let note of notes) {
     note = { ...note };
 
     const staffLine = Math.floor(note.column / noteCountPerLine);
     const staffPosition = note.column % noteCountPerLine;
 
-    if (!staffLines[staffLine]) {
-      staffLines[staffLine] = [];
+    if (staffLine >= numberOfStaffLines) {
+      continue;
     }
 
     note.column = staffPosition;

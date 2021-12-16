@@ -14,7 +14,7 @@ import {
   standardBassTuning,
   StringTuning,
 } from '../lib/tab';
-import { exampleSong } from '../lib/util';
+import { exampleSong, maxColumn } from '../lib/util';
 
 export interface Tab {
   stringSpec: StringTuning;
@@ -23,10 +23,16 @@ export interface Tab {
   isMouseDown: boolean;
   highlightedRegion?: Region;
   copyBuffer?: CopyBuffer;
+  notesPerLine: number;
+  numberOfStaffLines: number;
 }
 
+const notesPerLine = 40;
+const notes = exampleSong();
+const numberOfStaffLines = Math.ceil(maxColumn(notes) / notesPerLine);
+
 const initialState: Tab = {
-  notes: exampleSong(),
+  notes: notes,
   stringSpec: standardBassTuning,
   activeNote: {
     text: '',
@@ -34,12 +40,17 @@ const initialState: Tab = {
     column: 0,
   },
   isMouseDown: false,
+  notesPerLine,
+  numberOfStaffLines,
 };
 
 export const slice = createSlice({
   name: 'tab',
   initialState: initialState,
   reducers: {
+    notesChanged(state, action: PayloadAction<Note[]>) {
+      state.notes = action.payload;
+    },
     noteAdded(state, action: PayloadAction<Note>) {
       insertNote(state.notes, action.payload);
     },
@@ -157,6 +168,7 @@ export const slice = createSlice({
 });
 
 export const {
+  notesChanged,
   noteAdded,
   regionDeleted,
   activeNoteChanged,

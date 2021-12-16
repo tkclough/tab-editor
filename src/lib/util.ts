@@ -9,6 +9,17 @@ export function exampleSong(): Note[] {
   return parseSpec(spec, standardBassTuning);
 }
 
+export function maxColumn(notes: Note[]): number {
+  let max = 0;
+  for (let note of notes) {
+    if (note.column > max) {
+      max = note.column;
+    }
+  }
+
+  return max;
+}
+
 export function parseSpec(
   spec: string,
   stringNames: StringTuning,
@@ -42,10 +53,4 @@ export function parseSpec(
   }
 
   return notes;
-}
-function standardBassSpec(
-  spec: string,
-  standardBassSpec: any,
-): any[] {
-  throw new Error('Function not implemented.');
 }
