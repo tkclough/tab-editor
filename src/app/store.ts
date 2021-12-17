@@ -1,9 +1,14 @@
 import { configureStore } from '@reduxjs/toolkit';
+import editReducer from '../features/editing';
 import tabReducer from '../features/tab';
+import undoable from 'redux-undo';
 
 const store = configureStore({
   reducer: {
-    tab: tabReducer,
+    editing: editReducer,
+    tab: undoable(tabReducer, {
+      limit: 10,
+    }),
   },
 });
 

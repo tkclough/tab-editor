@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { ActionCreators } from 'redux-undo';
 import './App.css';
 import { useAppDispatch, useAppSelector } from './app/hooks';
 import {
@@ -6,10 +7,11 @@ import {
   highlightedRegionEndChanged,
   highlightedRegionStartChanged,
   mouseDownChanged,
-  noteAdded,
   activeNoteChanged,
   regionCopied,
-  regionCut,
+} from './features/editing';
+import {
+  noteAdded,
   regionDeleted,
   regionPasted,
   notesChanged,
@@ -46,13 +48,19 @@ function fallsWithinRegion(
 }
 
 export function App() {
-  const note = useAppSelector((state) => state.tab.activeNote);
-  const notes = useAppSelector((state) => state.tab.notes);
+  const note = useAppSelector((state) => state.editing.activeNote);
+  const notes = useAppSelector((state) => state.tab.present.notes);
   const noteCountPerLine = useAppSelector(
-    (state) => state.tab.notesPerLine,
+    (state) => state.editing.notesPerLine,
   );
   const numberOfStaffLines = useAppSelector(
-    (state) => state.tab.numberOfStaffLines,
+    (state) => state.editing.numberOfStaffLines,
+  );
+  const region = useAppSelector(
+    (state) => state.editing.highlightedRegion,
+  );
+  const copyBuffer = useAppSelector(
+    (state) => state.editing.copyBuffer,
   );
 
   const dispatch = useAppDispatch();
@@ -122,13 +130,32 @@ export function App() {
       movePosition(note.line, start + offset);
       return false;
     } else if (event.code === 'Delete') {
-      dispatch(regionDeleted());
+      if (region) {
+        dispatch(regionDeleted(region));
+      }
     } else if (event.ctrlKey && event.code === 'KeyC') {
-      dispatch(regionCopied());
+      dispatch(regionCopied(notes));
     } else if (event.ctrlKey && event.code === 'KeyV') {
-      dispatch(regionPasted());
+      if (copyBuffer) {
+        dispatch(
+          regionPasted({
+            startColumn: note.column,
+            startLine: note.line,
+            copyBuffer,
+          }),
+        );
+      }
     } else if (event.ctrlKey && event.code === 'KeyX') {
-      dispatch(regionCut());
+      if (region) {
+        dispatch(regionCopied(notes));
+        dispatch(regionDeleted(region));
+      }
+    } else if (event.ctrlKey && event.code === 'KeyZ') {
+      if (event.shiftKey) {
+        dispatch(ActionCreators.jump(1));
+      } else {
+        dispatch(ActionCreators.jump(-1));
+      }
     }
 
     if (event.key.match(/\d/)) {
@@ -260,12 +287,12 @@ function StaffLine(props: StaffLineProps) {
   } = props;
 
   const dispatch = useAppDispatch();
-  const note = useAppSelector((state) => state.tab.activeNote);
+  const note = useAppSelector((state) => state.editing.activeNote);
   const isMouseDown = useAppSelector(
-    (state) => state.tab.isMouseDown,
+    (state) => state.editing.isMouseDown,
   );
   const highlightedRegion = useAppSelector(
-    (state) => state.tab.highlightedRegion,
+    (state) => state.editing.highlightedRegion,
   );
 
   const height = 2 * margin + (lineCount - 1) * padding;
