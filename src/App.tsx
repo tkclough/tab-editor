@@ -22,6 +22,7 @@ import { fallsWithinRegion, Region } from './lib/editing';
 import { Note } from './lib/tab';
 import { maxColumn, renderTab } from './lib/util';
 
+const LETTER_WIDTH = 5; // TODO figure out how to compute from SVG text
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 
 export function App() {
@@ -161,9 +162,13 @@ function Staff(props: StaffProps) {
         event.code,
       ) > -1
     ) {
+      // Disallow navigating the page with arrows
       event.preventDefault();
     }
     if (event.code === 'ArrowUp') {
+      // Move the position one line up, or to the previous staff line when at
+      // the first line of the current one. Wrap around to the last line of the
+      // last staff line if already at the first
       if (note.line === 0) {
         movePosition(
           lineCount - 1,
@@ -176,8 +181,9 @@ function Staff(props: StaffProps) {
           note.column,
         );
       }
-      return false;
     } else if (event.code === 'ArrowDown') {
+      // Move the position one line down, or to the next staff line when at the
+      // last line of the current one. Add a new staff line if no more exist
       if (note.line === lineCount - 1) {
         if (
           Math.floor(note.column / noteCountPerLine) ===
@@ -190,21 +196,21 @@ function Staff(props: StaffProps) {
       } else {
         movePosition((note.line + 1) % lineCount, note.column);
       }
-      return false;
     } else if (event.code === 'ArrowLeft') {
+      // Move the position one to the left, wrapping around to end line
       const offset =
         (note.column - 1 + noteCountPerLine) % noteCountPerLine;
       const start =
         noteCountPerLine * Math.floor(note.column / noteCountPerLine);
       movePosition(note.line, start + offset);
-      return false;
     } else if (event.code === 'ArrowRight') {
+      // Move the position one to the right, wrapping around to start of line
       const offset = (note.column + 1) % noteCountPerLine;
       const start =
         noteCountPerLine * Math.floor(note.column / noteCountPerLine);
       movePosition(note.line, start + offset);
-      return false;
     } else if (event.code === 'Delete') {
+      // Delete: delete the highlighted region or selected position
       if (region) {
         dispatch(regionDeleted(region));
       } else {
@@ -217,8 +223,10 @@ function Staff(props: StaffProps) {
         dispatch(regionDeleted(region));
       }
     } else if (event.ctrlKey && event.code === 'KeyC') {
+      // Ctrl+C: copy the selected region into the buffer
       dispatch(regionCopied(notes));
     } else if (event.ctrlKey && event.code === 'KeyV') {
+      // Ctrl+V: paste the selected region, starting at the selected position
       if (copyBuffer) {
         dispatch(
           regionPasted({
@@ -229,17 +237,20 @@ function Staff(props: StaffProps) {
         );
       }
     } else if (event.ctrlKey && event.code === 'KeyX') {
+      // Ctrl+X: copy the selected region, then delete it
       if (region) {
         dispatch(regionCopied(notes));
         dispatch(regionDeleted(region));
       }
     } else if (event.ctrlKey && event.code === 'KeyZ') {
+      // Ctrl+Z: undo last modification to the tab
       if (event.shiftKey) {
         dispatch(ActionCreators.jump(1));
       } else {
         dispatch(ActionCreators.jump(-1));
       }
     } else if (event.ctrlKey && event.code === 'KeyA') {
+      // Ctrl+Shift+Z
       dispatch(highlightedRegionStartChanged(0, 0));
       dispatch(
         highlightedRegionEndChanged(
@@ -251,6 +262,7 @@ function Staff(props: StaffProps) {
     }
 
     if (event.key.match(/\d/)) {
+      // Digits get inserted at the current position
       dispatch(
         noteAdded({
           text: event.key,
@@ -279,16 +291,23 @@ function Staff(props: StaffProps) {
     staffLines.push([]);
   }
 
+  // Add notes to the proper staff lines
   for (let note of notes) {
     note = { ...note };
 
     const staffLine = Math.floor(note.column / noteCountPerLine);
     const staffPosition = note.column % noteCountPerLine;
 
-    if (staffLine >= numberOfStaffLines) {
+    // Skip notes that are out of bounds
+    if (
+      staffLine >= numberOfStaffLines ||
+      note.line < 0 ||
+      note.line >= lineCount
+    ) {
       continue;
     }
 
+    // Put note on right column for this line
     note.column = staffPosition;
 
     staffLines[staffLine].push(note);
@@ -338,7 +357,6 @@ function StaffLine(props: StaffLineProps) {
     noteCount,
     notes,
   } = props;
-
   const dispatch = useAppDispatch();
   const note = useAppSelector((state) => state.editing.activeNote);
   const isMouseDown = useAppSelector(
@@ -355,7 +373,7 @@ function StaffLine(props: StaffLineProps) {
 
   for (let note of notes) {
     const x = note.column * noteWidth;
-    const y = note.line * padding + margin + 5; // TODO magic number
+    const y = note.line * padding + margin + LETTER_WIDTH;
 
     if (!visibleElements[note.line]) {
       visibleElements[note.line] = [];
@@ -395,7 +413,7 @@ function StaffLine(props: StaffLineProps) {
           <text
             className="staffElement"
             x={j * noteWidth}
-            y={y + 5} // TODO magic number
+            y={y + LETTER_WIDTH}
             key={i * noteCount + j}
           >
             {note.text}
@@ -417,7 +435,7 @@ function StaffLine(props: StaffLineProps) {
         );
       }
 
-      const mouseDownHandler = (event: React.MouseEvent) => {
+      const mouseDownHandler = (_event: React.MouseEvent) => {
         dispatch(
           highlightedRegionStartChanged(
             i,
@@ -434,7 +452,7 @@ function StaffLine(props: StaffLineProps) {
         );
       };
 
-      const mouseUpHandler = (event: React.MouseEvent) => {
+      const mouseUpHandler = (_event: React.MouseEvent) => {
         dispatch(mouseDownChanged(false));
       };
 

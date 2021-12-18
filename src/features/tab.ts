@@ -11,7 +11,7 @@ import {
   standardBassTuning,
   StringTuning,
 } from '../lib/tab';
-import { exampleSong, maxColumn } from '../lib/util';
+import { exampleSong } from '../lib/util';
 
 export interface Tab {
   stringSpec: StringTuning;

@@ -106,6 +106,12 @@ export function deleteRectangle(notes: Note[], rectangle: Rectangle) {
   }
 }
 
+/**
+ * Copy notes from a rectangle into a copy buffer.
+ * @param notes notes to copy from
+ * @param rectangle rectangle of notes to copy from
+ * @returns the new copy buffer
+ */
 export function copyRectangle(
   notes: Note[],
   rectangle: Rectangle,
@@ -114,9 +120,12 @@ export function copyRectangle(
 
   const buffer: Note[] = [];
 
+  // Find index in notes corresponding to first note within rectangle
   let firstIx = findLastIndexLessEqual(notes, left, top);
+  // Find index in notes corresponding to last note within rectangle
   let lastIx = findLastIndexLessEqual(notes, right, bottom);
 
+  // Move forward until within the rectangle
   while (
     firstIx < notes.length &&
     (notes[firstIx].column < left ||
@@ -125,6 +134,7 @@ export function copyRectangle(
     firstIx++;
   }
 
+  // Move backward until within rectangle
   while (
     lastIx >= 0 &&
     (notes[lastIx].column > right ||
@@ -146,12 +156,14 @@ export function copyRectangle(
       continue;
     }
 
+    // Note is translated so top left is (0, 0)
     buffer.push({
       text,
       column: column - left,
       line: line - top,
     });
   }
+
   return {
     buffer,
     width: right - left,
