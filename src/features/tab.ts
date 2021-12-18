@@ -11,18 +11,15 @@ import {
   standardBassTuning,
   StringTuning,
 } from '../lib/tab';
-import { exampleSong } from '../lib/util';
 
 export interface Tab {
   stringSpec: StringTuning;
   notes: Note[];
 }
 
-const notes = exampleSong();
-
 const initialState: Tab = {
   stringSpec: standardBassTuning,
-  notes,
+  notes: [],
 };
 
 export interface PasteAction {

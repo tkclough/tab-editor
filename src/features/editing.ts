@@ -8,7 +8,6 @@ import {
   copyRectangle,
 } from '../lib/editing';
 import { Note } from '../lib/tab';
-import { exampleSong, maxColumn } from '../lib/util';
 
 export interface EditorState {
   activeNote: Note;
@@ -19,10 +18,6 @@ export interface EditorState {
   numberOfStaffLines: number;
 }
 
-const notesPerLine = 40;
-const notes = exampleSong();
-const numberOfStaffLines = Math.ceil(maxColumn(notes) / notesPerLine);
-
 const initialState: EditorState = {
   activeNote: {
     text: '',
@@ -30,8 +25,8 @@ const initialState: EditorState = {
     column: 0,
   },
   isMouseDown: false,
-  notesPerLine,
-  numberOfStaffLines,
+  notesPerLine: 40,
+  numberOfStaffLines: 1,
 };
 
 export interface LayoutChangedAction {

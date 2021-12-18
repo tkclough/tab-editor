@@ -175,9 +175,11 @@ export function renderTab(
       insertAndMove('-', Math.floor(column / spacesPerLine));
     }
 
+    // insert this text
     insertAndMove(note.text, Math.floor(goalColumn / spacesPerLine));
   }
 
+  // fill up last staff line
   const lastStaffLine = Math.floor(column / spacesPerLine);
   while (Math.floor(column / spacesPerLine) === lastStaffLine) {
     insertAndMove('-', lastStaffLine);

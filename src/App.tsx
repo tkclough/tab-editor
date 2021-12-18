@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActionCreators } from 'redux-undo';
 import './App.css';
 import { useAppDispatch, useAppSelector } from './app/hooks';
@@ -79,9 +79,13 @@ export function App() {
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const notesPerLine = parseInt(event.target.value);
-    const numberOfStaffLines = Math.ceil(
+    let numberOfStaffLines = Math.ceil(
       maxColumn(notes) / notesPerLine,
     );
+    if (numberOfStaffLines === 0) {
+      numberOfStaffLines = 1;
+    }
+
     dispatch(
       layoutChanged({
         notesPerLine,
@@ -92,12 +96,8 @@ export function App() {
 
   return (
     <div className="App">
-      <button onClick={downloadTab}>Download</button>
-      <input
-        type="text"
-        onChange={noteCountChangeHandler}
-        value={noteCountPerLine}
-      />
+      <EditableTitle />
+      <EditableAuthor />
       <Staff
         padding={padding}
         margin={margin}
@@ -107,7 +107,141 @@ export function App() {
         numberOfStaffLines={numberOfStaffLines}
         notes={notes}
       />
+      <div>
+        <button onClick={downloadTab}>Download Tab</button>
+        <label htmlFor="noteCountPerLineField">Notes per line:</label>
+        <input
+          id="noteCountPerLineField"
+          type="text"
+          onChange={noteCountChangeHandler}
+          value={noteCountPerLine}
+        />
+      </div>
     </div>
+  );
+}
+
+function EditableTitle() {
+  const [draftTitle, setDraftTitle] = useState('');
+  const [title, setTitle] = useState('My Tab');
+  const [editing, setEditing] = useState(false);
+  const [shouldFocus, setShouldFocus] = useState(false);
+
+  const editRef = useRef<HTMLInputElement>(null);
+
+  const changeHandler = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ): void => {
+    setDraftTitle(event.target.value);
+  };
+
+  const clickReadonlyHandler = (_event: React.MouseEvent) => {
+    setDraftTitle(title);
+    setEditing(true);
+    setShouldFocus(true);
+  };
+
+  const blurHandler = (_event: React.FocusEvent) => {
+    if (draftTitle.length > 0) {
+      setTitle(draftTitle);
+    }
+
+    setEditing(false);
+  };
+
+  const enterKeyHandler = (event: React.KeyboardEvent) => {
+    if (event.code === 'Enter') {
+      if (draftTitle.length > 0) {
+        setTitle(draftTitle);
+      }
+
+      setEditing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (shouldFocus && editing && editRef.current) {
+      editRef.current.focus();
+      editRef.current.select();
+      setShouldFocus(false);
+    }
+  });
+
+  return editing ? (
+    <input
+      type="text"
+      value={draftTitle}
+      onChange={changeHandler}
+      ref={editRef}
+      onBlur={blurHandler}
+      onKeyPress={enterKeyHandler}
+    />
+  ) : (
+    <h1 hidden={editing} onClick={clickReadonlyHandler}>
+      {title}
+    </h1>
+  );
+}
+
+function EditableAuthor() {
+  const [draft, setDraft] = useState('');
+  const [value, setValue] = useState('Someone');
+  const [editing, setEditing] = useState(false);
+  const [shouldFocus, setShouldFocus] = useState(false);
+
+  const editRef = useRef<HTMLInputElement>(null);
+
+  const changeHandler = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ): void => {
+    setDraft(event.target.value);
+  };
+
+  const clickReadonlyHandler = (_event: React.MouseEvent) => {
+    setDraft(value);
+    setEditing(true);
+    setShouldFocus(true);
+  };
+
+  const blurHandler = (_event: React.FocusEvent) => {
+    if (draft.length > 0) {
+      setValue(draft);
+    }
+
+    setEditing(false);
+  };
+
+  const enterKeyHandler = (event: React.KeyboardEvent) => {
+    if (event.code === 'Enter') {
+      if (draft.length > 0) {
+        setValue(draft);
+      }
+
+      setEditing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (shouldFocus && editing && editRef.current) {
+      editRef.current.focus();
+      editRef.current.select();
+      setShouldFocus(false);
+    }
+  });
+
+  return editing ? (
+    <input
+      type="text"
+      value={draft}
+      onChange={changeHandler}
+      ref={editRef}
+      onBlur={blurHandler}
+      onKeyPress={enterKeyHandler}
+    />
+  ) : (
+    <h2 hidden={editing} onClick={clickReadonlyHandler}>
+      {value}
+    </h2>
   );
 }
 
@@ -175,6 +309,22 @@ function Staff(props: StaffProps) {
           (note.column - noteCountPerLine + totalColumns) %
             totalColumns,
         );
+
+        // remove last staff line if it's empty
+        const lastStaffLineFirstColumn =
+          noteCountPerLine * (numberOfStaffLines - 1);
+        if (
+          numberOfStaffLines > 1 &&
+          (notes.length === 0 ||
+            notes[notes.length - 1].column < lastStaffLineFirstColumn)
+        ) {
+          dispatch(
+            layoutChanged({
+              notesPerLine: noteCountPerLine,
+              numberOfStaffLines: numberOfStaffLines - 1,
+            }),
+          );
+        }
       } else {
         movePosition(
           (note.line - 1 + lineCount) % lineCount,
@@ -270,18 +420,23 @@ function Staff(props: StaffProps) {
           column: note.column,
         }),
       );
-      const offset = (note.column + 1) % noteCountPerLine;
-      const start =
-        noteCountPerLine * Math.floor(note.column / noteCountPerLine);
 
-      dispatch(
-        activeNoteChanged({
-          text: '',
-          line: note.line,
-          column: start + offset,
-        }),
-      );
-      dispatch(highlightedRegionCleared());
+      // Move to the next column if not at the end of the line
+      if (note.column % noteCountPerLine < noteCountPerLine - 1) {
+        const offset = (note.column + 1) % noteCountPerLine;
+        const start =
+          noteCountPerLine *
+          Math.floor(note.column / noteCountPerLine);
+
+        dispatch(
+          activeNoteChanged({
+            text: '',
+            line: note.line,
+            column: start + offset,
+          }),
+        );
+        dispatch(highlightedRegionCleared());
+      }
     }
   };
 
