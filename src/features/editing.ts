@@ -38,6 +38,10 @@ export const slice = createSlice({
   name: 'editing',
   initialState: initialState,
   reducers: {
+    staffLineAdded(state) {
+      state.numberOfStaffLines += 1;
+    },
+
     activeNoteChanged(state, action: PayloadAction<Note>) {
       const { text, line, column } = action.payload;
       state.activeNote.text = text;
@@ -106,6 +110,7 @@ export const slice = createSlice({
 });
 
 export const {
+  staffLineAdded,
   activeNoteChanged,
   highlightedRegionCleared,
   highlightedRegionEndChanged,

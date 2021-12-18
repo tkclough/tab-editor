@@ -9,6 +9,7 @@ import {
   mouseDownChanged,
   activeNoteChanged,
   regionCopied,
+  staffLineAdded,
 } from './features/editing';
 import {
   noteAdded,
@@ -108,10 +109,14 @@ export function App() {
       return false;
     } else if (event.code === 'ArrowDown') {
       if (note.line === lineCount - 1) {
-        movePosition(
-          0,
-          (note.column + noteCountPerLine) % totalColumns,
-        );
+        if (
+          Math.floor(note.column / noteCountPerLine) ===
+          numberOfStaffLines - 1
+        ) {
+          dispatch(staffLineAdded());
+        }
+
+        movePosition(0, note.column + noteCountPerLine);
       } else {
         movePosition((note.line + 1) % lineCount, note.column);
       }
@@ -156,6 +161,15 @@ export function App() {
       } else {
         dispatch(ActionCreators.jump(-1));
       }
+    } else if (event.ctrlKey && event.code === 'KeyA') {
+      dispatch(highlightedRegionStartChanged(0, 0));
+      dispatch(
+        highlightedRegionEndChanged(
+          lineCount,
+          noteCountPerLine * numberOfStaffLines,
+        ),
+      );
+      event.preventDefault();
     }
 
     if (event.key.match(/\d/)) {
