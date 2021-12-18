@@ -10,6 +10,7 @@ import {
   activeNoteChanged,
   regionCopied,
   staffLineAdded,
+  layoutChanged,
 } from './features/editing';
 import {
   noteAdded,
@@ -19,37 +20,12 @@ import {
 } from './features/tab';
 import { Region } from './lib/editing';
 import { Note } from './lib/tab';
+import { maxColumn, renderTab } from './lib/util';
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 
-function fallsWithinRegion(
-  region: Region,
-  line: number,
-  column: number,
-): boolean {
-  if (
-    region.startLine <= line &&
-    line <= region.endLine &&
-    region.startColumn <= column &&
-    column <= region.endColumn
-  ) {
-    return true;
-  }
-
-  if (
-    region.endLine <= line &&
-    line <= region.startLine &&
-    region.endColumn <= column &&
-    column <= region.startColumn
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
 export function App() {
-  const note = useAppSelector((state) => state.editing.activeNote);
+  const dispatch = useAppDispatch();
   const notes = useAppSelector((state) => state.tab.present.notes);
   const noteCountPerLine = useAppSelector(
     (state) => state.editing.notesPerLine,
@@ -57,6 +33,98 @@ export function App() {
   const numberOfStaffLines = useAppSelector(
     (state) => state.editing.numberOfStaffLines,
   );
+
+  // Staff parameters
+  const lineCount = 4,
+    noteWidth = 9,
+    padding = 20,
+    margin = 10;
+
+  useEffect(() => {
+    const data = localStorage.getItem('tabData');
+    let parsed;
+    if (data !== null && (parsed = JSON.parse(data))) {
+      dispatch(notesChanged(parsed));
+    }
+  }, []);
+
+  const downloadTab = () => {
+    let content = '';
+    const rendered = renderTab(notes, lineCount, noteCountPerLine);
+    for (let i = 0; i < rendered.length; i++) {
+      const staffLine = rendered[i];
+      for (let j = 0; j < staffLine.length; j++) {
+        content += staffLine[j] + '\n';
+      }
+      content += '\n';
+    }
+
+    const element = document.createElement('a');
+    element.setAttribute(
+      'href',
+      'data:text/plain;charset=utf-8,' + encodeURIComponent(content),
+    );
+    element.setAttribute('download', 'tab.txt');
+
+    element.style.display = 'none';
+    document.body.appendChild(element);
+
+    element.click();
+
+    document.body.removeChild(element);
+  };
+
+  const noteCountChangeHandler = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const notesPerLine = parseInt(event.target.value);
+    const numberOfStaffLines = Math.ceil(
+      maxColumn(notes) / notesPerLine,
+    );
+    dispatch(
+      layoutChanged({
+        notesPerLine,
+        numberOfStaffLines,
+      }),
+    );
+  };
+
+  return (
+    <div className="App">
+      <button onClick={downloadTab}>Download</button>
+      <input
+        type="text"
+        onChange={noteCountChangeHandler}
+        value={noteCountPerLine}
+      />
+      <Staff
+        padding={padding}
+        margin={margin}
+        lineCount={lineCount}
+        noteWidth={noteWidth}
+        noteCountPerLine={noteCountPerLine}
+        numberOfStaffLines={numberOfStaffLines}
+        notes={notes}
+      />
+    </div>
+  );
+}
+
+interface StaffProps {
+  padding: number;
+  margin: number;
+  lineCount: number;
+  noteWidth: number;
+  noteCountPerLine: number;
+  numberOfStaffLines: number;
+  notes: Note[];
+  currentPosition?: Note;
+  highlightedRegion?: Region;
+}
+
+function Staff(props: StaffProps) {
+  const dispatch = useAppDispatch();
+  const note = useAppSelector((state) => state.editing.activeNote);
   const region = useAppSelector(
     (state) => state.editing.highlightedRegion,
   );
@@ -64,18 +132,20 @@ export function App() {
     (state) => state.editing.copyBuffer,
   );
 
-  const dispatch = useAppDispatch();
-
-  // Staff parameters
-  const lineCount = 4,
-    noteWidth = 18,
-    padding = 20,
-    margin = 10;
+  const {
+    padding,
+    margin,
+    lineCount,
+    noteWidth,
+    noteCountPerLine,
+    numberOfStaffLines,
+    notes,
+  } = props;
 
   const totalColumns = noteCountPerLine * numberOfStaffLines;
 
   const movePosition = (line: number, column: number): void => {
-    if (note.text) {
+    if (note.text.length > 0) {
       dispatch(noteAdded(note));
     }
     dispatch(activeNoteChanged({ text: '', line, column }));
@@ -137,6 +207,14 @@ export function App() {
     } else if (event.code === 'Delete') {
       if (region) {
         dispatch(regionDeleted(region));
+      } else {
+        const region: Region = {
+          startColumn: note.column,
+          endColumn: note.column,
+          startLine: note.line,
+          endLine: note.column,
+        };
+        dispatch(regionDeleted(region));
       }
     } else if (event.ctrlKey && event.code === 'KeyC') {
       dispatch(regionCopied(notes));
@@ -173,71 +251,28 @@ export function App() {
     }
 
     if (event.key.match(/\d/)) {
-      const newText =
-        note.text.length > 1 ? event.key : note.text + event.key;
-
       dispatch(
-        activeNoteChanged({
-          text: newText,
+        noteAdded({
+          text: event.key,
           line: note.line,
           column: note.column,
         }),
       );
+      const offset = (note.column + 1) % noteCountPerLine;
+      const start =
+        noteCountPerLine * Math.floor(note.column / noteCountPerLine);
+
+      dispatch(
+        activeNoteChanged({
+          text: '',
+          line: note.line,
+          column: start + offset,
+        }),
+      );
+      dispatch(highlightedRegionCleared());
     }
   };
 
-  useEffect(() => {
-    const data = localStorage.getItem('tabData');
-    let parsed;
-    if (data !== null && (parsed = JSON.parse(data))) {
-      dispatch(notesChanged(parsed));
-    }
-  }, []);
-
-  const saveTab = () => {
-    localStorage.setItem('tabData', JSON.stringify(notes));
-  };
-
-  return (
-    <div className="App" tabIndex={0} onKeyDown={keyDownHandler}>
-      <button onClick={saveTab}>Save</button>
-      <Staff
-        padding={padding}
-        margin={margin}
-        lineCount={lineCount}
-        noteWidth={noteWidth}
-        noteCountPerLine={noteCountPerLine}
-        numberOfStaffLines={numberOfStaffLines}
-        notes={notes}
-      />
-    </div>
-  );
-}
-
-interface StaffProps {
-  padding: number;
-  margin: number;
-  lineCount: number;
-  noteWidth: number;
-  noteCountPerLine: number;
-  numberOfStaffLines: number;
-  notes: Note[];
-  currentPosition?: Note;
-  highlightedRegion?: Region;
-}
-
-function Staff(props: StaffProps) {
-  const {
-    padding,
-    margin,
-    lineCount,
-    noteWidth,
-    noteCountPerLine,
-    numberOfStaffLines,
-    notes,
-  } = props;
-
-  // TODO make number of staff lines independent of notes
   // Position notes on separate staff lines
   let staffLines: Note[][] = [];
   for (let i = 0; i < numberOfStaffLines; i++) {
@@ -273,7 +308,11 @@ function Staff(props: StaffProps) {
   ));
 
   return (
-    <div className="staffContainer">
+    <div
+      className="staffContainer"
+      onKeyDown={keyDownHandler}
+      tabIndex={0}
+    >
       <div className="staff">{staffLineElements}</div>
     </div>
   );
@@ -465,4 +504,11 @@ function StaffLine(props: StaffLineProps) {
       {boxes}
     </svg>
   );
+}
+function fallsWithinRegion(
+  highlightedRegion: Region,
+  i: number,
+  arg2: number,
+) {
+  throw new Error('Function not implemented.');
 }

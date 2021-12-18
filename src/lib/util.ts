@@ -9,6 +9,16 @@ export function exampleSong(): Note[] {
   return parseSpec(spec, standardBassTuning);
 }
 
+export function tuningNumberOfLines(tuning: StringTuning): number {
+  let lines = 0;
+  for (let prop in tuning) {
+    if (tuning.hasOwnProperty(prop)) {
+      lines += 1;
+    }
+  }
+  return lines;
+}
+
 export function maxColumn(notes: Note[]): number {
   let max = 0;
   for (let note of notes) {
@@ -24,6 +34,7 @@ export function parseSpec(
   spec: string,
   stringNames: StringTuning,
 ): Note[] {
+  const lineCount = tuningNumberOfLines(stringNames);
   const noteCountRegexp = /(\d+)/;
   const noteRegexp = /(\w+)\/(\w+)/;
 
@@ -40,11 +51,24 @@ export function parseSpec(
       const fret = match[2];
 
       const stringIndex = stringNames[stringName];
-      notes.push({
-        text: fret,
-        line: stringIndex,
-        column: noteIndex,
-      });
+      if (fret.length === 1) {
+        notes.push({
+          text: fret,
+          line: stringIndex,
+          column: noteIndex,
+        });
+      } else {
+        notes.push({
+          text: fret[0],
+          line: stringIndex,
+          column: noteIndex,
+        });
+        notes.push({
+          text: fret[1],
+          line: stringIndex,
+          column: noteIndex + 1,
+        });
+      }
 
       noteIndex += noteLength;
     } else if ((match = part.match(noteCountRegexp))) {
@@ -52,5 +76,92 @@ export function parseSpec(
     }
   }
 
+  notes.sort(
+    (a, b) =>
+      a.line + lineCount * a.column - (b.line + lineCount * b.column),
+  );
+
   return notes;
+}
+
+export function renderTab(
+  notes: Note[],
+  lineCount: number,
+  spacesPerLine: number,
+): string[][] {
+  const tab: string[][] = []; // tab[i][j] is the jth line of the ith staff line
+
+  let line = 0,
+    column = 0;
+  for (const note of notes) {
+    if (note.line < 0 || note.line >= lineCount) {
+      continue;
+    }
+
+    const goalLine = note.line,
+      goalColumn = note.column;
+
+    // fill intermediate spaces with dashes
+    while (line < goalLine || column < goalColumn) {
+      const staffLine = Math.floor(column / spacesPerLine);
+
+      if (!tab[staffLine]) {
+        tab[staffLine] = [];
+      }
+
+      if (!tab[staffLine][line]) {
+        tab[staffLine][line] = '';
+      }
+
+      tab[staffLine][line] += '-';
+
+      if (line === lineCount - 1) {
+        line = 0;
+        column++;
+      } else {
+        line++;
+      }
+    }
+
+    const staffLine = Math.floor(goalColumn / spacesPerLine);
+
+    if (!tab[staffLine]) {
+      tab[staffLine] = [];
+    }
+
+    if (!tab[staffLine][line]) {
+      tab[staffLine][line] = '';
+    }
+
+    tab[staffLine][line] += note.text;
+
+    if (line === lineCount - 1) {
+      line = 0;
+      column++;
+    } else {
+      line++;
+    }
+  }
+
+  const lastStaffLine = Math.floor(column / spacesPerLine);
+  while (Math.floor(column / spacesPerLine) === lastStaffLine) {
+    if (!tab[lastStaffLine]) {
+      tab[lastStaffLine] = [];
+    }
+
+    if (!tab[lastStaffLine][line]) {
+      tab[lastStaffLine][line] = '';
+    }
+
+    tab[lastStaffLine][line] += '-';
+
+    if (line === lineCount - 1) {
+      line = 0;
+      column++;
+    } else {
+      line++;
+    }
+  }
+
+  return tab;
 }

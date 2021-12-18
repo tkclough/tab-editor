@@ -34,10 +34,21 @@ const initialState: EditorState = {
   numberOfStaffLines,
 };
 
+export interface LayoutChangedAction {
+  notesPerLine: number;
+  numberOfStaffLines: number;
+}
+
 export const slice = createSlice({
   name: 'editing',
   initialState: initialState,
   reducers: {
+    layoutChanged(state, action: PayloadAction<LayoutChangedAction>) {
+      const { notesPerLine, numberOfStaffLines } = action.payload;
+      state.notesPerLine = notesPerLine;
+      state.numberOfStaffLines = numberOfStaffLines;
+    },
+
     staffLineAdded(state) {
       state.numberOfStaffLines += 1;
     },
@@ -116,6 +127,7 @@ export const {
   highlightedRegionEndChanged,
   highlightedRegionStartChanged,
   mouseDownChanged,
+  layoutChanged,
   regionCopied,
 } = slice.actions;
 

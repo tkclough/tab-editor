@@ -31,6 +31,39 @@ export interface CopyBuffer {
 }
 
 /**
+ * Determine whether a given position is within a region.
+ * @param region
+ * @param line line position
+ * @param column column position
+ * @returns
+ */
+export function fallsWithinRegion(
+  region: Region,
+  line: number,
+  column: number,
+): boolean {
+  if (
+    region.startLine <= line &&
+    line <= region.endLine &&
+    region.startColumn <= column &&
+    column <= region.endColumn
+  ) {
+    return true;
+  }
+
+  if (
+    region.endLine <= line &&
+    line <= region.startLine &&
+    region.endColumn <= column &&
+    column <= region.startColumn
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Turn a region, which can go either direction on the screen, into a rectangle
  * that has well-ordered parameters.
  * @param region region to transform
