@@ -18,7 +18,7 @@ import {
   regionPasted,
   notesChanged,
 } from './features/tab';
-import { Region } from './lib/editing';
+import { fallsWithinRegion, Region } from './lib/editing';
 import { Note } from './lib/tab';
 import { maxColumn, renderTab } from './lib/util';
 
@@ -504,11 +504,4 @@ function StaffLine(props: StaffLineProps) {
       {boxes}
     </svg>
   );
-}
-function fallsWithinRegion(
-  highlightedRegion: Region,
-  i: number,
-  arg2: number,
-) {
-  throw new Error('Function not implemented.');
 }
