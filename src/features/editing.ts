@@ -25,7 +25,7 @@ const initialState: EditorState = {
     column: 0,
   },
   isMouseDown: false,
-  notesPerLine: 40,
+  notesPerLine: 80,
   numberOfStaffLines: 1,
 };
 

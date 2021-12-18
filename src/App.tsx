@@ -17,6 +17,8 @@ import {
   regionDeleted,
   regionPasted,
   notesChanged,
+  titleChanged,
+  authorChanged,
 } from './features/tab';
 import { fallsWithinRegion, Region } from './lib/editing';
 import { Note } from './lib/tab';
@@ -27,6 +29,8 @@ const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 
 export function App() {
   const dispatch = useAppDispatch();
+  const title = useAppSelector((state) => state.tab.present.title);
+  const author = useAppSelector((state) => state.tab.present.author);
   const notes = useAppSelector((state) => state.tab.present.notes);
   const noteCountPerLine = useAppSelector(
     (state) => state.editing.notesPerLine,
@@ -35,6 +39,12 @@ export function App() {
     (state) => state.editing.numberOfStaffLines,
   );
 
+  const [noteCountPerLineString, setNoteCountPerLineString] =
+    useState(noteCountPerLine.toString());
+  const [noteCountTimeout, setNoteCountTimeout] = useState<
+    number | undefined
+  >();
+
   // Staff parameters
   const lineCount = 4,
     noteWidth = 9,
@@ -42,12 +52,38 @@ export function App() {
     margin = 10;
 
   useEffect(() => {
-    const data = localStorage.getItem('tabData');
-    let parsed;
-    if (data !== null && (parsed = JSON.parse(data))) {
-      dispatch(notesChanged(parsed));
+    const dataString = localStorage.getItem('tabData');
+    if (dataString) {
+      const data = JSON.parse(dataString);
+      dispatch(authorChanged(data['author']));
+      dispatch(titleChanged(data['title']));
+      dispatch(notesChanged(data['notes']));
+
+      const noteCountPerLine = data['noteCountPerLine'];
+      let numberOfStaffLines = Math.ceil(
+        maxColumn(notes) / noteCountPerLine,
+      );
+      if (numberOfStaffLines === 0) numberOfStaffLines = 1;
+
+      dispatch(
+        layoutChanged({
+          numberOfStaffLines,
+          notesPerLine: noteCountPerLine,
+        }),
+      );
     }
   }, []);
+
+  const saveTab = () => {
+    const data = {
+      title: title,
+      author: author,
+      noteCountPerLine,
+      notes: notes,
+    };
+
+    localStorage.setItem('tabData', JSON.stringify(data));
+  };
 
   const downloadTab = () => {
     let content = '';
@@ -75,24 +111,32 @@ export function App() {
     document.body.removeChild(element);
   };
 
-  const noteCountChangeHandler = (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const notesPerLine = parseInt(event.target.value);
-    let numberOfStaffLines = Math.ceil(
-      maxColumn(notes) / notesPerLine,
-    );
-    if (numberOfStaffLines === 0) {
-      numberOfStaffLines = 1;
-    }
+  useEffect(() => {
+    clearTimeout(noteCountTimeout);
 
-    dispatch(
-      layoutChanged({
-        notesPerLine,
-        numberOfStaffLines,
-      }),
+    setNoteCountTimeout(
+      window.setTimeout(() => {
+        const notesPerLine = parseInt(noteCountPerLineString);
+        if (isNaN(notesPerLine) || notesPerLine < 1) {
+          return;
+        }
+
+        let numberOfStaffLines = Math.ceil(
+          maxColumn(notes) / notesPerLine,
+        );
+        if (numberOfStaffLines === 0) {
+          numberOfStaffLines = 1;
+        }
+
+        dispatch(
+          layoutChanged({
+            notesPerLine,
+            numberOfStaffLines,
+          }),
+        );
+      }, 500),
     );
-  };
+  }, [noteCountPerLineString]);
 
   return (
     <div className="App">
@@ -107,14 +151,25 @@ export function App() {
         numberOfStaffLines={numberOfStaffLines}
         notes={notes}
       />
-      <div>
-        <button onClick={downloadTab}>Download Tab</button>
+      <div className="tabOptions">
+        <div>
+          <button onClick={saveTab}>Save</button>
+          <button onClick={downloadTab}>Download Tab</button>
+        </div>
         <label htmlFor="noteCountPerLineField">Notes per line:</label>
         <input
           id="noteCountPerLineField"
           type="text"
-          onChange={noteCountChangeHandler}
-          value={noteCountPerLine}
+          onChange={(ev) => {
+            setNoteCountPerLineString(ev.target.value);
+          }}
+          onBlur={(_ev) => {
+            const n = parseInt(_ev.target.value);
+            if (isNaN(n) || n < 1) {
+              setNoteCountPerLineString(noteCountPerLine.toString());
+            }
+          }}
+          value={noteCountPerLineString}
         />
       </div>
     </div>
@@ -122,8 +177,11 @@ export function App() {
 }
 
 function EditableTitle() {
+  // TODO figure out how to reuse code for title & author
+  const dispatch = useAppDispatch();
+  const title = useAppSelector((state) => state.tab.present.title);
+
   const [draftTitle, setDraftTitle] = useState('');
-  const [title, setTitle] = useState('My Tab');
   const [editing, setEditing] = useState(false);
   const [shouldFocus, setShouldFocus] = useState(false);
 
@@ -143,7 +201,7 @@ function EditableTitle() {
 
   const blurHandler = (_event: React.FocusEvent) => {
     if (draftTitle.length > 0) {
-      setTitle(draftTitle);
+      dispatch(titleChanged(draftTitle));
     }
 
     setEditing(false);
@@ -152,7 +210,7 @@ function EditableTitle() {
   const enterKeyHandler = (event: React.KeyboardEvent) => {
     if (event.code === 'Enter') {
       if (draftTitle.length > 0) {
-        setTitle(draftTitle);
+        dispatch(titleChanged(draftTitle));
       }
 
       setEditing(false);
@@ -165,7 +223,7 @@ function EditableTitle() {
       editRef.current.select();
       setShouldFocus(false);
     }
-  });
+  }, [shouldFocus, editing]);
 
   return editing ? (
     <input
@@ -184,8 +242,10 @@ function EditableTitle() {
 }
 
 function EditableAuthor() {
+  const dispatch = useAppDispatch();
+  const author = useAppSelector((state) => state.tab.present.author);
+
   const [draft, setDraft] = useState('');
-  const [value, setValue] = useState('Someone');
   const [editing, setEditing] = useState(false);
   const [shouldFocus, setShouldFocus] = useState(false);
 
@@ -198,14 +258,14 @@ function EditableAuthor() {
   };
 
   const clickReadonlyHandler = (_event: React.MouseEvent) => {
-    setDraft(value);
+    setDraft(author);
     setEditing(true);
     setShouldFocus(true);
   };
 
   const blurHandler = (_event: React.FocusEvent) => {
     if (draft.length > 0) {
-      setValue(draft);
+      dispatch(authorChanged(draft));
     }
 
     setEditing(false);
@@ -214,7 +274,7 @@ function EditableAuthor() {
   const enterKeyHandler = (event: React.KeyboardEvent) => {
     if (event.code === 'Enter') {
       if (draft.length > 0) {
-        setValue(draft);
+        dispatch(authorChanged(draft));
       }
 
       setEditing(false);
@@ -227,7 +287,7 @@ function EditableAuthor() {
       editRef.current.select();
       setShouldFocus(false);
     }
-  });
+  }, [shouldFocus, editing]);
 
   return editing ? (
     <input
@@ -240,7 +300,7 @@ function EditableAuthor() {
     />
   ) : (
     <h2 hidden={editing} onClick={clickReadonlyHandler}>
-      {value}
+      {author}
     </h2>
   );
 }
@@ -299,80 +359,8 @@ function Staff(props: StaffProps) {
       // Disallow navigating the page with arrows
       event.preventDefault();
     }
-    if (event.code === 'ArrowUp') {
-      // Move the position one line up, or to the previous staff line when at
-      // the first line of the current one. Wrap around to the last line of the
-      // last staff line if already at the first
-      if (note.line === 0) {
-        movePosition(
-          lineCount - 1,
-          (note.column - noteCountPerLine + totalColumns) %
-            totalColumns,
-        );
 
-        // remove last staff line if it's empty
-        const lastStaffLineFirstColumn =
-          noteCountPerLine * (numberOfStaffLines - 1);
-        if (
-          numberOfStaffLines > 1 &&
-          (notes.length === 0 ||
-            notes[notes.length - 1].column < lastStaffLineFirstColumn)
-        ) {
-          dispatch(
-            layoutChanged({
-              notesPerLine: noteCountPerLine,
-              numberOfStaffLines: numberOfStaffLines - 1,
-            }),
-          );
-        }
-      } else {
-        movePosition(
-          (note.line - 1 + lineCount) % lineCount,
-          note.column,
-        );
-      }
-    } else if (event.code === 'ArrowDown') {
-      // Move the position one line down, or to the next staff line when at the
-      // last line of the current one. Add a new staff line if no more exist
-      if (note.line === lineCount - 1) {
-        if (
-          Math.floor(note.column / noteCountPerLine) ===
-          numberOfStaffLines - 1
-        ) {
-          dispatch(staffLineAdded());
-        }
-
-        movePosition(0, note.column + noteCountPerLine);
-      } else {
-        movePosition((note.line + 1) % lineCount, note.column);
-      }
-    } else if (event.code === 'ArrowLeft') {
-      // Move the position one to the left, wrapping around to end line
-      const offset =
-        (note.column - 1 + noteCountPerLine) % noteCountPerLine;
-      const start =
-        noteCountPerLine * Math.floor(note.column / noteCountPerLine);
-      movePosition(note.line, start + offset);
-    } else if (event.code === 'ArrowRight') {
-      // Move the position one to the right, wrapping around to start of line
-      const offset = (note.column + 1) % noteCountPerLine;
-      const start =
-        noteCountPerLine * Math.floor(note.column / noteCountPerLine);
-      movePosition(note.line, start + offset);
-    } else if (event.code === 'Delete') {
-      // Delete: delete the highlighted region or selected position
-      if (region) {
-        dispatch(regionDeleted(region));
-      } else {
-        const region: Region = {
-          startColumn: note.column,
-          endColumn: note.column,
-          startLine: note.line,
-          endLine: note.column,
-        };
-        dispatch(regionDeleted(region));
-      }
-    } else if (event.ctrlKey && event.code === 'KeyC') {
+    if (event.ctrlKey && event.code === 'KeyC') {
       // Ctrl+C: copy the selected region into the buffer
       dispatch(regionCopied(notes));
     } else if (event.ctrlKey && event.code === 'KeyV') {
@@ -409,9 +397,88 @@ function Staff(props: StaffProps) {
         ),
       );
       event.preventDefault();
-    }
+    } else if (event.code === 'ArrowUp' || event.code === 'KeyW') {
+      // Move the position one line up, or to the previous staff line when at
+      // the first line of the current one. Wrap around to the last line of the
+      // last staff line if already at the first
+      if (note.line === 0) {
+        movePosition(
+          lineCount - 1,
+          (note.column - noteCountPerLine + totalColumns) %
+            totalColumns,
+        );
 
-    if (event.key.match(/\d/)) {
+        // remove last staff line if it's empty
+        const lastStaffLineFirstColumn =
+          noteCountPerLine * (numberOfStaffLines - 1);
+        if (
+          numberOfStaffLines > 1 &&
+          (notes.length === 0 ||
+            notes[notes.length - 1].column < lastStaffLineFirstColumn)
+        ) {
+          dispatch(
+            layoutChanged({
+              notesPerLine: noteCountPerLine,
+              numberOfStaffLines: numberOfStaffLines - 1,
+            }),
+          );
+        }
+      } else {
+        movePosition(
+          (note.line - 1 + lineCount) % lineCount,
+          note.column,
+        );
+      }
+    } else if (event.code === 'ArrowDown' || event.code === 'KeyS') {
+      // Move the position one line down, or to the next staff line when at the
+      // last line of the current one. Add a new staff line if no more exist
+      if (note.line === lineCount - 1) {
+        if (
+          Math.floor(note.column / noteCountPerLine) ===
+          numberOfStaffLines - 1
+        ) {
+          dispatch(staffLineAdded());
+        }
+
+        movePosition(0, note.column + noteCountPerLine);
+      } else {
+        movePosition((note.line + 1) % lineCount, note.column);
+      }
+    } else if (event.code === 'ArrowLeft' || event.code === 'KeyA') {
+      // Move the position one to the left, wrapping around to end line
+      const offset =
+        (note.column - 1 + noteCountPerLine) % noteCountPerLine;
+      const start =
+        noteCountPerLine * Math.floor(note.column / noteCountPerLine);
+      movePosition(note.line, start + offset);
+    } else if (event.code === 'ArrowRight' || event.code === 'KeyD') {
+      // Move the position one to the right, wrapping around to start of line
+      const offset = (note.column + 1) % noteCountPerLine;
+      const start =
+        noteCountPerLine * Math.floor(note.column / noteCountPerLine);
+      movePosition(note.line, start + offset);
+    } else if (event.code === 'Delete') {
+      // Delete: delete the highlighted region or selected position
+      if (region) {
+        dispatch(regionDeleted(region));
+      } else {
+        const region: Region = {
+          startColumn: note.column,
+          endColumn: note.column,
+          startLine: note.line,
+          endLine: note.column,
+        };
+        dispatch(regionDeleted(region));
+      }
+    } else if (
+      event.key.length === 1 &&
+      (event.key.match(/^\d$/) ||
+        event.key === 'x' ||
+        event.key === 'h' ||
+        event.key === '\\' ||
+        event.key === '/')
+    ) {
+      console.log(event.key);
       // Digits get inserted at the current position
       dispatch(
         noteAdded({

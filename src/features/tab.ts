@@ -13,11 +13,15 @@ import {
 } from '../lib/tab';
 
 export interface Tab {
+  title: string;
+  author: string;
   stringSpec: StringTuning;
   notes: Note[];
 }
 
 const initialState: Tab = {
+  title: 'My Tab',
+  author: 'Someone',
   stringSpec: standardBassTuning,
   notes: [],
 };
@@ -32,6 +36,12 @@ export const slice = createSlice({
   name: 'tab',
   initialState,
   reducers: {
+    titleChanged(state, action: PayloadAction<string>) {
+      state.title = action.payload;
+    },
+    authorChanged(state, action: PayloadAction<string>) {
+      state.author = action.payload;
+    },
     notesChanged(state, action: PayloadAction<Note[]>) {
       state.notes = action.payload;
     },
@@ -67,6 +77,8 @@ export const slice = createSlice({
 });
 
 export const {
+  titleChanged,
+  authorChanged,
   notesChanged,
   noteAdded,
   regionDeleted,
