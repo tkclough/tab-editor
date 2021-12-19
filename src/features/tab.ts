@@ -6,6 +6,7 @@ import {
   Region,
 } from '../lib/editing';
 import {
+  findLastIndexLessEqual,
   insertNote,
   Note,
   standardBassTuning,
@@ -36,6 +37,21 @@ export const slice = createSlice({
   name: 'tab',
   initialState,
   reducers: {
+    columnInserted(state, action: PayloadAction<number>) {
+      const newColumn = action.payload;
+
+      let startIx = findLastIndexLessEqual(state.notes, newColumn, 0);
+      while (
+        startIx < state.notes.length &&
+        state.notes[startIx].column < newColumn
+      ) {
+        startIx++;
+      }
+
+      for (let i = startIx; i < state.notes.length; i++) {
+        state.notes[i].column++;
+      }
+    },
     titleChanged(state, action: PayloadAction<string>) {
       state.title = action.payload;
     },
@@ -77,6 +93,7 @@ export const slice = createSlice({
 });
 
 export const {
+  columnInserted,
   titleChanged,
   authorChanged,
   notesChanged,

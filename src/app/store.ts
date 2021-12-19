@@ -3,7 +3,7 @@ import editReducer from '../features/editing';
 import tabReducer from '../features/tab';
 import undoable from 'redux-undo';
 
-const store = configureStore({
+export const store = configureStore({
   reducer: {
     editing: editReducer,
     tab: undoable(tabReducer, {

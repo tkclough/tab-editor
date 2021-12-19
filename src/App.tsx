@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Provider, useDispatch } from 'react-redux';
 import { ActionCreators } from 'redux-undo';
-import './App.css';
-import { useAppDispatch, useAppSelector } from './app/hooks';
+import { useAppSelector } from './app/hooks';
+import store, { AppDispatch } from './app/store';
 import {
   highlightedRegionCleared,
   highlightedRegionEndChanged,
@@ -19,19 +20,45 @@ import {
   notesChanged,
   titleChanged,
   authorChanged,
+  columnInserted,
 } from './features/tab';
 import { fallsWithinRegion, Region } from './lib/editing';
-import { Note } from './lib/tab';
+import { Note, StringTuning } from './lib/tab';
 import { maxColumn, renderTab } from './lib/util';
 
-const LETTER_WIDTH = 5; // TODO figure out how to compute from SVG text
+const HALF_LETTER_HEIGHT = 5; // TODO figure out how to compute from SVG text
+const LETTER_WIDTH = 15;
+
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 
-export function App() {
-  const dispatch = useAppDispatch();
+interface AppProps {
+  styles: any;
+}
+
+export function App(props: AppProps) {
+  const { styles } = props;
+
+  return (
+    <Provider store={store}>
+      <TabEditor styles={styles} />
+    </Provider>
+  );
+}
+
+interface TabEditorProps {
+  styles: any;
+}
+
+export function TabEditor(props: TabEditorProps) {
+  const { styles } = props;
+
+  const dispatch = useDispatch<AppDispatch>();
   const title = useAppSelector((state) => state.tab.present.title);
   const author = useAppSelector((state) => state.tab.present.author);
   const notes = useAppSelector((state) => state.tab.present.notes);
+  const stringSpec = useAppSelector(
+    (state) => state.tab.present.stringSpec,
+  );
   const noteCountPerLine = useAppSelector(
     (state) => state.editing.notesPerLine,
   );
@@ -139,46 +166,71 @@ export function App() {
   }, [noteCountPerLineString]);
 
   return (
-    <div className="App">
-      <EditableTitle />
-      <EditableAuthor />
+    <div className={styles.App}>
+      <EditableTitle styles={styles} />
+      <EditableAuthor styles={styles} />
       <Staff
         padding={padding}
         margin={margin}
+        stringSpec={stringSpec}
         lineCount={lineCount}
         noteWidth={noteWidth}
         noteCountPerLine={noteCountPerLine}
         numberOfStaffLines={numberOfStaffLines}
         notes={notes}
+        styles={styles}
       />
-      <div className="tabOptions">
+      <div className={styles.options}>
         <div>
-          <button onClick={saveTab}>Save</button>
-          <button onClick={downloadTab}>Download Tab</button>
+          <button className={styles.btnSave} onClick={saveTab}>
+            Save
+          </button>
+          <button
+            className={styles.btnDownload}
+            onClick={downloadTab}
+          >
+            Download
+          </button>
         </div>
-        <label htmlFor="noteCountPerLineField">Notes per line:</label>
-        <input
-          id="noteCountPerLineField"
-          type="text"
-          onChange={(ev) => {
-            setNoteCountPerLineString(ev.target.value);
-          }}
-          onBlur={(_ev) => {
-            const n = parseInt(_ev.target.value);
-            if (isNaN(n) || n < 1) {
-              setNoteCountPerLineString(noteCountPerLine.toString());
-            }
-          }}
-          value={noteCountPerLineString}
-        />
+        <div className={styles.noteCountContainer}>
+          <label
+            className={styles.lblNoteCount}
+            htmlFor="noteCountPerLineField"
+          >
+            Notes per line:
+          </label>
+          <input
+            className={styles.fieldNoteCount}
+            id="noteCountPerLineField"
+            type="text"
+            onChange={(ev) => {
+              setNoteCountPerLineString(ev.target.value);
+            }}
+            onBlur={(_ev) => {
+              const n = parseInt(_ev.target.value);
+              if (isNaN(n) || n < 1) {
+                setNoteCountPerLineString(
+                  noteCountPerLine.toString(),
+                );
+              }
+            }}
+            value={noteCountPerLineString}
+          />
+        </div>
       </div>
     </div>
   );
 }
 
-function EditableTitle() {
+interface EditableProps {
+  styles: any;
+}
+
+function EditableTitle(props: EditableProps) {
+  const { styles } = props;
+
   // TODO figure out how to reuse code for title & author
-  const dispatch = useAppDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const title = useAppSelector((state) => state.tab.present.title);
 
   const [draftTitle, setDraftTitle] = useState('');
@@ -227,6 +279,7 @@ function EditableTitle() {
 
   return editing ? (
     <input
+      className={styles.titleHeaderEdit}
       type="text"
       value={draftTitle}
       onChange={changeHandler}
@@ -235,14 +288,20 @@ function EditableTitle() {
       onKeyPress={enterKeyHandler}
     />
   ) : (
-    <h1 hidden={editing} onClick={clickReadonlyHandler}>
+    <h1
+      className={styles.titleHeader}
+      hidden={editing}
+      onClick={clickReadonlyHandler}
+    >
       {title}
     </h1>
   );
 }
 
-function EditableAuthor() {
-  const dispatch = useAppDispatch();
+function EditableAuthor(props: EditableProps) {
+  const { styles } = props;
+
+  const dispatch = useDispatch<AppDispatch>();
   const author = useAppSelector((state) => state.tab.present.author);
 
   const [draft, setDraft] = useState('');
@@ -291,6 +350,7 @@ function EditableAuthor() {
 
   return editing ? (
     <input
+      className={styles.authorHeaderEdit}
       type="text"
       value={draft}
       onChange={changeHandler}
@@ -299,7 +359,11 @@ function EditableAuthor() {
       onKeyPress={enterKeyHandler}
     />
   ) : (
-    <h2 hidden={editing} onClick={clickReadonlyHandler}>
+    <h2
+      className={styles.authorHeader}
+      hidden={editing}
+      onClick={clickReadonlyHandler}
+    >
       {author}
     </h2>
   );
@@ -308,6 +372,7 @@ function EditableAuthor() {
 interface StaffProps {
   padding: number;
   margin: number;
+  stringSpec: StringTuning;
   lineCount: number;
   noteWidth: number;
   noteCountPerLine: number;
@@ -315,10 +380,11 @@ interface StaffProps {
   notes: Note[];
   currentPosition?: Note;
   highlightedRegion?: Region;
+  styles: any;
 }
 
 function Staff(props: StaffProps) {
-  const dispatch = useAppDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const note = useAppSelector((state) => state.editing.activeNote);
   const region = useAppSelector(
     (state) => state.editing.highlightedRegion,
@@ -330,11 +396,13 @@ function Staff(props: StaffProps) {
   const {
     padding,
     margin,
+    stringSpec,
     lineCount,
     noteWidth,
     noteCountPerLine,
     numberOfStaffLines,
     notes,
+    styles,
   } = props;
 
   const totalColumns = noteCountPerLine * numberOfStaffLines;
@@ -470,6 +538,19 @@ function Staff(props: StaffProps) {
         };
         dispatch(regionDeleted(region));
       }
+    } else if (event.code === 'Insert') {
+      let max = maxColumn(notes);
+      dispatch(columnInserted(note.column));
+      if (note.column <= max) max++;
+
+      if (Math.floor(max / noteCountPerLine) >= numberOfStaffLines) {
+        dispatch(
+          layoutChanged({
+            numberOfStaffLines: numberOfStaffLines + 1,
+            notesPerLine: noteCountPerLine,
+          }),
+        );
+      }
     } else if (
       event.key.length === 1 &&
       (event.key.match(/^\d$/) ||
@@ -541,20 +622,22 @@ function Staff(props: StaffProps) {
       padding={padding}
       margin={margin}
       lineCount={lineCount}
+      stringSpec={stringSpec}
       staffLineIndex={i}
       noteWidth={noteWidth}
       noteCount={noteCountPerLine}
       notes={staffLine}
+      styles={styles}
     />
   ));
 
   return (
     <div
-      className="staffContainer"
+      className={styles.staffContainer}
       onKeyDown={keyDownHandler}
       tabIndex={0}
     >
-      <div className="staff">{staffLineElements}</div>
+      <div className={styles.staff}>{staffLineElements}</div>
     </div>
   );
 }
@@ -564,22 +647,26 @@ interface StaffLineProps {
   margin: number;
   staffLineIndex: number;
   lineCount: number;
+  stringSpec: StringTuning;
   noteWidth: number;
   noteCount: number;
   notes: Note[];
+  styles: any;
 }
 
 function StaffLine(props: StaffLineProps) {
   const {
     padding,
     margin,
+    stringSpec,
     lineCount,
     staffLineIndex,
     noteWidth,
     noteCount,
     notes,
+    styles,
   } = props;
-  const dispatch = useAppDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const note = useAppSelector((state) => state.editing.activeNote);
   const isMouseDown = useAppSelector(
     (state) => state.editing.isMouseDown,
@@ -589,13 +676,37 @@ function StaffLine(props: StaffLineProps) {
   );
 
   const height = 2 * margin + (lineCount - 1) * padding;
-  const width = noteWidth * noteCount;
+  const width = LETTER_WIDTH + noteWidth * noteCount;
+
+  const stringHeader = [];
+  const stringLine = (
+    <line
+      className={styles.staffElement}
+      x1={LETTER_WIDTH}
+      y1={0}
+      x2={LETTER_WIDTH}
+      y2={height}
+      stroke="black"
+      strokeWidth="1"
+      opacity="0.9"
+    />
+  );
+  for (const name in stringSpec) {
+    const index = stringSpec[name];
+    const x = 0;
+    const y = margin + index * padding + HALF_LETTER_HEIGHT;
+    stringHeader.push(
+      <text className={styles.staffElement} x={x} y={y} key={index}>
+        {name}
+      </text>,
+    );
+  }
 
   const visibleElements: JSX.Element[][] = [];
 
   for (let note of notes) {
-    const x = note.column * noteWidth;
-    const y = note.line * padding + margin + LETTER_WIDTH;
+    const x = LETTER_WIDTH + note.column * noteWidth;
+    const y = note.line * padding + margin + HALF_LETTER_HEIGHT;
 
     if (!visibleElements[note.line]) {
       visibleElements[note.line] = [];
@@ -603,7 +714,7 @@ function StaffLine(props: StaffLineProps) {
 
     visibleElements[note.line][note.column] = (
       <text
-        className="staffElement"
+        className={styles.staffElement}
         x={x}
         y={y}
         key={note.line * noteCount + note.column}
@@ -617,7 +728,7 @@ function StaffLine(props: StaffLineProps) {
   for (let i = 0; i < lineCount; i++) {
     const y = margin + i * padding;
     for (let j = 0; j < noteCount; j++) {
-      const x = j * noteWidth;
+      const x = LETTER_WIDTH + j * noteWidth;
       if (!visibleElements[i]) {
         visibleElements[i] = [];
       }
@@ -633,9 +744,9 @@ function StaffLine(props: StaffLineProps) {
 
         visibleElements[i][j] = (
           <text
-            className="staffElement"
+            className={styles.staffElement}
             x={j * noteWidth}
-            y={y + LETTER_WIDTH}
+            y={y + HALF_LETTER_HEIGHT}
             key={i * noteCount + j}
           >
             {note.text}
@@ -645,7 +756,7 @@ function StaffLine(props: StaffLineProps) {
         visibleElements[i][j] = (
           <line
             key={i * noteCount + j}
-            className="staffElement"
+            className={styles.staffElement}
             x1={x}
             y1={y}
             x2={x + noteWidth}
@@ -698,9 +809,9 @@ function StaffLine(props: StaffLineProps) {
         );
       };
 
-      let boxClass = 'staffBox';
+      let boxClass = styles.staffBox;
       if (isSelected) {
-        boxClass += ' selected';
+        boxClass += ' ' + styles.selected;
       }
 
       if (
@@ -711,7 +822,7 @@ function StaffLine(props: StaffLineProps) {
           j + staffLineIndex * noteCount,
         )
       ) {
-        boxClass += ' highlighted';
+        boxClass += ' ' + styles.highlighted;
       }
 
       boxes.push(
@@ -737,9 +848,11 @@ function StaffLine(props: StaffLineProps) {
     <svg
       width={width}
       height={height}
-      className="staffLine"
+      className={styles.staffLine}
       xmlns={SVG_NAMESPACE}
     >
+      {stringHeader}
+      {stringLine}
       {visibleElements.flat()}
       {boxes}
     </svg>
